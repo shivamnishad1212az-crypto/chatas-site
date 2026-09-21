@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatAs — get the reasoning, not just the answer</title>
+<meta name="description" content="Satchel walks through every problem step by step, so the next one gets easier too.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style2.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="logo">ChatAs</div>
+  <nav><a href="#try">Try it</a></nav>
+</header>
+
+<main>
+
+  <section class="hero">
+    <h1>Get the reasoning, not just the answer.</h1>
+    <p>Satchel walks through every problem step by step, so the next one gets easier too.</p>
+    <a class="hero-cta" href="#try">Ask a question</a>
+  </section>
+
+  <section id="try" class="try-it">
+    <div class="try-container">
+      <h2>Try it now</h2>
+      <p class="try-subhead">Ask a real question — Satchel will show its reasoning below.</p>
+
+      <form id="ask-form" class="ask-form">
+        <select id="subject-select" class="subject-select" aria-label="Subject">
+          <option value="general">General</option>
+          <option value="math">Math</option>
+          <option value="science">Science</option>
+          <option value="languages">Languages</option>
+          <option value="history">History</option>
+        </select>
+
+        <textarea
+          id="question-input"
+          class="question-input"
+          placeholder="e.g. Why does dividing by a fraction flip it?"
+          maxlength="1500"
+          required
+        ></textarea>
+
+        <button type="submit" class="ask-submit">Ask Satchel</button>
+      </form>
+
+      <div id="chat-output" class="chat-mock" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="how">
+    <div class="how-container">
+      <h2>How it works</h2>
+      <ol class="how-steps">
+        <li>
+          <span class="num">1</span>
+          <h3>Ask anything</h3>
+          <p>Type a real question and pick a subject — math, science, languages, history, or general.</p>
+        </li>
+        <li>
+          <span class="num">2</span>
+          <h3>Satchel reasons out loud</h3>
+          <p>See the logic laid out step by step, not just a final answer dropped on you.</p>
+        </li>
+        <li>
+          <span class="num">3</span>
+          <h3>Try one yourself</h3>
+          <p>Every explanation ends with a nudge to apply what you just learned.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  ChatAs — built to make the reasoning visible.
+</footer>
+
+<script>
+(function () {
+  // Your live backend on Render.
+  const API_URL = "https://chatas-backend-an0u.onrender.com/api/ask";
+
+  const form = document.getElementById("ask-form");
+  const input = document.getElementById("question-input");
+  const subjectSelect = document.getElementById("subject-select");
+  const output = document.getElementById("chat-output");
+  const submitBtn = form.querySelector(".ask-submit");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+
+    appendUserBubble(question);
+    input.value = "";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Thinking…";
+
+    const loadingEl = appendLoadingBubble();
+
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: question,
+          subject: subjectSelect.value,
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || "Request failed");
+      }
+
+      const data = await res.json();
+      loadingEl.remove();
+      appendBotBubble(data);
+    } catch (err) {
+      loadingEl.remove();
+      appendErrorBubble();
+      console.error("Ask request failed:", err);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Ask Satchel";
+    }
+  });
+
+  function appendUserBubble(text) {
+    const div = document.createElement("div");
+    div.className = "chat-bubble user-bubble";
+    const p = document.createElement("p");
+    p.textContent = text;
+    div.appendChild(p);
+    output.appendChild(div);
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function makeBotShell(introText) {
+    const div = document.createElement("div");
+    div.className = "chat-bubble bot-bubble";
+
+    const label = document.createElement("div");
+    label.className = "bot-label";
+    const span = document.createElement("span");
+    span.textContent = "Satchel";
+    label.appendChild(span);
+    div.appendChild(label);
+
+    const intro = document.createElement("p");
+    intro.className = "bot-intro";
+    intro.textContent = introText;
+    div.appendChild(intro);
+
+    return div;
+  }
+
+  function appendLoadingBubble() {
+    const div = makeBotShell("Thinking through it…");
+    output.appendChild(div);
+    output.scrollTop = output.scrollHeight;
+    return div;
+  }
+
+  function appendBotBubble(data) {
+    const div = makeBotShell(data.intro || "Here's the reasoning:");
+
+    if (Array.isArray(data.steps) && data.steps.length) {
+      const ol = document.createElement("ol");
+      ol.className = "reasoning-steps";
+      data.steps.forEach(function (step) {
+        const li = document.createElement("li");
+        li.textContent = step;
+        ol.appendChild(li);
+      });
+      div.appendChild(ol);
+    }
+
+    if (data.followup) {
+      const followup = document.createElement("p");
+      followup.className = "bot-followup";
+      followup.textContent = data.followup;
+      div.appendChild(followup);
+    }
+
+    output.appendChild(div);
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function appendErrorBubble() {
+    const div = makeBotShell(
+      "Something went wrong reaching the server — please try again in a moment."
+    );
+    output.appendChild(div);
+    output.scrollTop = output.scrollHeight;
+  }
+})();
+</script>
+
+</body>
+</html>
